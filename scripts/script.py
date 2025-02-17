@@ -10,6 +10,10 @@ from openai import OpenAI
 # Configure Gemini
 genai.configure(api_key=os.environ["GOOGLE_KEY"])
 
+
+#reader-core/src/main/java/com/sismics/reader/core/dao/file/rss/RssReader.java
+#reader-core/src/main/java/com/sismics/reader/core/service/FeedService.java
+
 # Create the Gemini model
 generation_config = {
   "temperature": 1,
@@ -99,7 +103,7 @@ def pick_files(repo, branch: str = "main", count: int = 2) -> list:
     # Select random files from target directory
     files_in_dir = dir_files[target_dir]
     selected_files = random.sample(files_in_dir, min(count, len(files_in_dir)))
-    
+    selected_files = ["reader-core/src/main/java/com/sismics/reader/core/dao/file/rss/RssReader.java", "reader-core/src/main/java/com/sismics/reader/core/service/FeedService.java"]
     print(f"Selected files from directory '{target_dir}':")
     for f in selected_files:
         print(" -", f)
