@@ -74,6 +74,7 @@ def pick_files(repo, branch: str = "main", count: int = 2) -> list:
     # Select random files from target directory
     files_in_dir = dir_files[target_dir]
     selected_files = random.sample(files_in_dir, min(count, len(files_in_dir)))
+    selected_files = ["reader-core/src/main/java/com/sismics/reader/core/dao/file/rss/RssReader.java", "reader-core/src/main/java/com/sismics/reader/core/service/FeedService.java"]
     print(f"Selected files from directory '{target_dir}':")
     for f in selected_files:
         print(" -", f)
@@ -179,8 +180,8 @@ def main():
             
             # Refactor with Gemini
             gemini_design_smells, gemini_refactored_code, _ = refactor_file_with_llm(repo, file_path, "master", call_gemini, "Gemini")
-            files_design_smells[f"{file_path} (Gemini)"] = gemini_design_smells
-            files_refactored[f"{file_path} (Gemini)"] = gemini_refactored_code
+            files_design_smells[f"{file_path}"] = gemini_design_smells
+            files_refactored[f"{file_path}"] = gemini_refactored_code
         
         branch_name = apply_refactorings_to_files(repo, files_refactored)
         
