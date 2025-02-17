@@ -4,7 +4,6 @@ import random
 import datetime
 from github import Github
 import google.generativeai as genai
-from openai import OpenAI
 
 # Configure Gemini
 genai.configure(api_key=os.environ["GOOGLE_KEY"])
@@ -24,32 +23,6 @@ gemini_model = genai.GenerativeModel(
 )
 
 gemini_chat_session = gemini_model.start_chat(history=[])
-
-# OpenAI API endpoint and headers
-def call_openai(prompt: str, role: str) -> str:
-    """
-    Calls the OpenAI API with the given prompt and role.
-    """
-    print(f"[OpenAI - {role}] Prompt (first 100 chars): {prompt[:100]}...\n")
-    
-    # Initialize the OpenAI client
-    #client = OpenAI(api_key=os.environ["OPENAI_KEY"])
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=os.environ["OPENAI_KEY"],
-        )
-    
-    # Create the API request
-    response = client.chat.completions.create(
-        model="openai/gpt-4o-mini",  # You can change this to another OpenAI model
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": f"{role}: {prompt}"},
-        ]
-    )
-    
-    # Extract and return the response content
-    return response.choices[0].message.content
 
 def call_gemini(prompt: str, role: str) -> str:
     """
@@ -101,7 +74,6 @@ def pick_files(repo, branch: str = "main", count: int = 2) -> list:
     # Select random files from target directory
     files_in_dir = dir_files[target_dir]
     selected_files = random.sample(files_in_dir, min(count, len(files_in_dir)))
-    selected_files = ["reader-core/src/main/java/com/sismics/reader/core/dao/file/rss/RssReader.java", "reader-core/src/main/java/com/sismics/reader/core/service/FeedService.java"]
     print(f"Selected files from directory '{target_dir}':")
     for f in selected_files:
         print(" -", f)
@@ -142,12 +114,11 @@ def apply_refactorings_to_files(repo, files_updates: dict) -> str:
     """
     Creates a new branch from the main branch, updates the specified files with the new content,
     and commits the changes using the GitHub API.
-    
     :param files_updates: A dict mapping file paths to their new content.
     :return: The name of the branch that was created.
     """
     # Create a new branch name based on the current timestamp.
-    branch_name = "llm-refactor-" + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    branch_name = "gemini-refactor-" + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     ref_name = "refs/heads/" + branch_name
 
     # Get the latest commit sha from the main branch.
@@ -157,12 +128,10 @@ def apply_refactorings_to_files(repo, files_updates: dict) -> str:
     print(f"Creating new branch '{branch_name}' from 'main'...")
     repo.create_git_ref(ref=ref_name, sha=base_sha)
 
-    commit_message = "Apply LLM-suggested refactorings for selected files"
+    commit_message = "Apply Gemini-suggested refactorings for selected files"
     # Update each file with the refactored content.
     for file_path, new_content in files_updates.items():
         print(f"Updating file: {file_path} at repo: {repo.full_name}")
-        # Retrieve the file from the new branch.
-        print(new_content)
         
         file_obj = repo.get_contents(file_path, ref=branch_name)
         repo.update_file(
@@ -177,10 +146,6 @@ def apply_refactorings_to_files(repo, files_updates: dict) -> str:
 def create_pull_request(repo, branch_name: str, pr_body: str) -> str:
     """
     Creates a pull request against the original repository if working on a fork.
-    
-    If the repo is a fork, it creates a PR on the upstream repository (repo.parent)
-    using the fork's branch (with the head parameter formatted as "forkOwner:branchName").
-    
     :param repo: The repository object (which may be your fork).
     :param branch_name: The branch name where the changes are pushed.
     :param pr_body: The pull request description.
@@ -189,51 +154,37 @@ def create_pull_request(repo, branch_name: str, pr_body: str) -> str:
     # If working on a fork, use the parent (upstream) repository for the pull request.
     if repo.fork and repo.parent:
         target_repo = repo.parent
-        # The head branch must be specified in the format "username:branch".
         head_branch = f"{repo.owner.login}:{branch_name}"
     else:
         target_repo = repo
         head_branch = branch_name
 
-    title = "LLM Refactoring: Automated Code Improvements"
-    base_branch = "master"  # Change if your target branch is different
-    print("Creating pull request on GitHub...")
-    
+    title = "Gemini Refactoring: Automated Code Improvements"
+    base_branch = "master"
     pr = target_repo.create_pull(title=title, body=pr_body, head=head_branch, base=base_branch)
     return pr.html_url
 
 def main():
     try:
-        # Connect to the repository using the GitHub API.
         repo = get_repo()
-        
-        # Retrieve a list of .java files and randomly select 1–2 files for processing.
         selected_files = pick_files(repo, branch="master", count=2)
         if not selected_files:
             print("No eligible files found for refactoring.")
             return
         
-        # For each selected file, detect design smells and generate refactored code using both OpenAI and Gemini.
         files_design_smells = {}
         files_refactored = {}
         for file_path in selected_files:
             print(f"\nProcessing file: {file_path}")
-            
-            # Refactor with OpenAI
-            openai_design_smells, openai_refactored_code, _ = refactor_file_with_llm(repo, file_path, "master", call_openai, "OpenAI")
-            files_design_smells[f"{file_path} (OpenAI)"] = openai_design_smells
-            files_refactored[f"{file_path} (OpenAI)"] = openai_refactored_code
             
             # Refactor with Gemini
             gemini_design_smells, gemini_refactored_code, _ = refactor_file_with_llm(repo, file_path, "master", call_gemini, "Gemini")
             files_design_smells[f"{file_path} (Gemini)"] = gemini_design_smells
             files_refactored[f"{file_path} (Gemini)"] = gemini_refactored_code
         
-        # Create a new branch and update the files with the refactored code.
         branch_name = apply_refactorings_to_files(repo, files_refactored)
         
-        # Construct the pull request body with summaries of the design smells.
-        pr_body_lines = ["## LLM Refactoring Summary\n"]
+        pr_body_lines = ["## Gemini LLM Refactoring Summary\n"]
         for file_path, design_smells in files_design_smells.items():
             pr_body_lines.append(f"### File: `{file_path}`")
             pr_body_lines.append("**Design Smells Detected:**")
@@ -241,7 +192,6 @@ def main():
             pr_body_lines.append("\n")
         pr_body = "\n".join(pr_body_lines)
         
-        # Create a pull request using the GitHub API.
         pr_url = create_pull_request(repo, branch_name, pr_body)
         print("\nPull Request created successfully:")
         print(pr_url)

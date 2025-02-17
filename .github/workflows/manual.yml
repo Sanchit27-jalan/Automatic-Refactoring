@@ -28,5 +28,8 @@ jobs:
           pip install openai
           pip install google-generativeai
 
-      - name: Run LLM Refactor Script
-        run: python scripts/script.py
+      - name: Run Gemini LLM Refactor Script
+        run: python scripts/script_gemini.py
+
+      - name: Run OpenAI LLM Refactor Script
+        run: python scripts/script_openai.py
