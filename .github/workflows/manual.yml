@@ -1,0 +1,31 @@
+name: Manual LLM Refactor
+
+on:
+  workflow_dispatch:  # This allows manual triggering of the workflow
+
+jobs:
+  run-llm-refactor:
+    runs-on: ubuntu-latest
+    env:
+      TOKEN: ${{ secrets.TOKEN }}
+      REPOSITORY: ${{ secrets.REPOSITORY }}
+      GOOGLE_KEY: ${{ secrets.GOOGLE_KEY }}
+      DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_KEY }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install PyGithub
+          pip install openai
+          pip install google-generativeai
+
+      - name: Run LLM Refactor Script
+        run: python scripts/script.py
