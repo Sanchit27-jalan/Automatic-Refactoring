@@ -11,6 +11,7 @@ jobs:
       REPOSITORY: ${{ secrets.REPOSITORY }}
       GOOGLE_KEY: ${{ secrets.GOOGLE_KEY }}
       DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_KEY }}
+      OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
