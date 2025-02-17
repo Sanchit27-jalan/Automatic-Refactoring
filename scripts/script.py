@@ -49,7 +49,7 @@ def call_openai(prompt: str, role: str) -> str:
     )
     
     # Extract and return the response content
-    return response['choices'][0]['message']['content']
+    return response.choices[0].message.content
 
 def call_gemini(prompt: str, role: str) -> str:
     """
