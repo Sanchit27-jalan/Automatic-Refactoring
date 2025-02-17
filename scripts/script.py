@@ -4,15 +4,10 @@ import random
 import datetime
 from github import Github
 import google.generativeai as genai
-import requests  # Assuming Deepseek uses a REST API
 from openai import OpenAI
 
 # Configure Gemini
 genai.configure(api_key=os.environ["GOOGLE_KEY"])
-
-
-#reader-core/src/main/java/com/sismics/reader/core/dao/file/rss/RssReader.java
-#reader-core/src/main/java/com/sismics/reader/core/service/FeedService.java
 
 # Create the Gemini model
 generation_config = {
@@ -30,28 +25,27 @@ gemini_model = genai.GenerativeModel(
 
 gemini_chat_session = gemini_model.start_chat(history=[])
 
-# Deepseek API endpoint and headers (assuming it's a REST API)
-def call_deepseek(prompt: str, role: str) -> str:
+# OpenAI API endpoint and headers
+def call_openai(prompt: str, role: str) -> str:
     """
-    Calls the DeepSeek API with the given prompt and role.
+    Calls the OpenAI API with the given prompt and role.
     """
-    print(f"[DeepSeek - {role}] Prompt (first 100 chars): {prompt[:100]}...\n")
+    print(f"[OpenAI - {role}] Prompt (first 100 chars): {prompt[:100]}...\n")
     
-    # Initialize the DeepSeek client
-    client = OpenAI(api_key=os.environ["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
+    # Initialize the OpenAI client
+    client = OpenAI(api_key=os.environ["OPENAI_KEY"])
     
     # Create the API request
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model="gpt-4",  # You can change this to another OpenAI model
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": f"{role}: {prompt}"},
-        ],
-        stream=False
+        ]
     )
     
     # Extract and return the response content
-    return response.choices[0].message.content
+    return response['choices'][0]['message']['content']
 
 def call_gemini(prompt: str, role: str) -> str:
     """
@@ -215,16 +209,16 @@ def main():
             print("No eligible files found for refactoring.")
             return
         
-        # For each selected file, detect design smells and generate refactored code using both Deepseek and Gemini.
+        # For each selected file, detect design smells and generate refactored code using both OpenAI and Gemini.
         files_design_smells = {}
         files_refactored = {}
         for file_path in selected_files:
             print(f"\nProcessing file: {file_path}")
             
-            # Refactor with Deepseek
-            deepseek_design_smells, deepseek_refactored_code, _ = refactor_file_with_llm(repo, file_path, "master", call_deepseek, "Deepseek")
-            files_design_smells[f"{file_path} (Deepseek)"] = deepseek_design_smells
-            files_refactored[f"{file_path} (Deepseek)"] = deepseek_refactored_code
+            # Refactor with OpenAI
+            openai_design_smells, openai_refactored_code, _ = refactor_file_with_llm(repo, file_path, "master", call_openai, "OpenAI")
+            files_design_smells[f"{file_path} (OpenAI)"] = openai_design_smells
+            files_refactored[f"{file_path} (OpenAI)"] = openai_refactored_code
             
             # Refactor with Gemini
             gemini_design_smells, gemini_refactored_code, _ = refactor_file_with_llm(repo, file_path, "master", call_gemini, "Gemini")
