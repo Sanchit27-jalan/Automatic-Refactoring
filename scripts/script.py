@@ -3,12 +3,14 @@ import os
 import random
 import datetime
 from github import Github
-import os
 import google.generativeai as genai
+import requests  # Assuming Deepseek uses a REST API
+from openai import OpenAI
 
+# Configure Gemini
 genai.configure(api_key=os.environ["GOOGLE_KEY"])
 
-# Create the model
+# Create the Gemini model
 generation_config = {
   "temperature": 1,
   "top_p": 0.95,
@@ -17,25 +19,43 @@ generation_config = {
   "response_mime_type": "text/plain",
 }
 
-model = genai.GenerativeModel(
+gemini_model = genai.GenerativeModel(
   model_name="gemini-2.0-flash",
   generation_config=generation_config,
 )
 
-chat_session = model.start_chat(
-  history=[
-  ]
-)
+gemini_chat_session = gemini_model.start_chat(history=[])
 
-def call_llm(prompt: str, role: str) -> str:
+# Deepseek API endpoint and headers (assuming it's a REST API)
+def call_deepseek(prompt: str, role: str) -> str:
     """
-    Dummy function simulating an API call to an LLM.
-    Replace this with your actual LLM integration.
+    Calls the DeepSeek API with the given prompt and role.
     """
-    print(f"[{role}] Prompt (first 100 chars): {prompt[:100]}...\n")
+    print(f"[DeepSeek - {role}] Prompt (first 100 chars): {prompt[:100]}...\n")
     
-    response = chat_session.send_message(f"{role}: {prompt}")
-    # Dummy response for demonstration purposes.
+    # Initialize the DeepSeek client
+    client = OpenAI(api_key=os.environ["DEEPSEEK_KEY"], base_url="https://api.deepseek.com")
+    
+    # Create the API request
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": f"{role}: {prompt}"},
+        ],
+        stream=False
+    )
+    
+    # Extract and return the response content
+    return response.choices[0].message.content
+
+def call_gemini(prompt: str, role: str) -> str:
+    """
+    Calls the Gemini API with the given prompt and role.
+    """
+    print(f"[Gemini - {role}] Prompt (first 100 chars): {prompt[:100]}...\n")
+    
+    response = gemini_chat_session.send_message(f"{role}: {prompt}")
     return response.text
 
 def get_repo() -> object:
@@ -85,10 +105,9 @@ def pick_files(repo, branch: str = "main", count: int = 2) -> list:
         print(" -", f)
     return selected_files
 
-
-def refactor_file(repo, file_path: str, branch: str = "main") -> (str, str):
+def refactor_file_with_llm(repo, file_path: str, branch: str, llm_callback, llm_name: str) -> (str, str):
     """
-    Retrieves the file content from the repository, sends it to dummy LLM functions to detect design smells
+    Retrieves the file content from the repository, sends it to the specified LLM to detect design smells
     and generate a refactored version, and returns both the design smells summary and the new code.
     """
     content_file = repo.get_contents(file_path, ref=branch)
@@ -106,16 +125,16 @@ def refactor_file(repo, file_path: str, branch: str = "main") -> (str, str):
         f"{original_code}\n\n"
         "Please provide a brief summary focusing on the most critical issues and metrics that exceed common thresholds."
     )
-    design_smells = call_llm(prompt_design_smells, role="Design Smell Finder")
+    design_smells = llm_callback(prompt_design_smells, role="Design Smell Finder")
     
     prompt_refactor = (
         f"Based on the following detected design smells:\n{design_smells}\n\n"
         f"Refactor the code below to address these issues and improve code quality. "
         f"Return only the complete new file content:\n\n{original_code}"
     )
-    refactored_code = call_llm(prompt_refactor, role="Refactoring Expert")
+    refactored_code = llm_callback(prompt_refactor, role="Refactoring Expert")
     
-    return design_smells, refactored_code
+    return design_smells, refactored_code, llm_name
 
 def apply_refactorings_to_files(repo, files_updates: dict) -> str:
     """
@@ -181,26 +200,32 @@ def create_pull_request(repo, branch_name: str, pr_body: str) -> str:
     pr = target_repo.create_pull(title=title, body=pr_body, head=head_branch, base=base_branch)
     return pr.html_url
 
-
 def main():
     try:
         # Connect to the repository using the GitHub API.
         repo = get_repo()
         
-        # Retrieve a list of .py files and randomly select 1–2 files for processing.
+        # Retrieve a list of .java files and randomly select 1–2 files for processing.
         selected_files = pick_files(repo, branch="master", count=2)
         if not selected_files:
             print("No eligible files found for refactoring.")
             return
         
-        # For each selected file, detect design smells and generate refactored code.
+        # For each selected file, detect design smells and generate refactored code using both Deepseek and Gemini.
         files_design_smells = {}
         files_refactored = {}
         for file_path in selected_files:
             print(f"\nProcessing file: {file_path}")
-            design_smells, refactored_code = refactor_file(repo, file_path, branch="master")
-            files_design_smells[file_path] = design_smells
-            files_refactored[file_path] = refactored_code
+            
+            # Refactor with Deepseek
+            deepseek_design_smells, deepseek_refactored_code, _ = refactor_file_with_llm(repo, file_path, "master", call_deepseek, "Deepseek")
+            files_design_smells[f"{file_path} (Deepseek)"] = deepseek_design_smells
+            files_refactored[f"{file_path} (Deepseek)"] = deepseek_refactored_code
+            
+            # Refactor with Gemini
+            gemini_design_smells, gemini_refactored_code, _ = refactor_file_with_llm(repo, file_path, "master", call_gemini, "Gemini")
+            files_design_smells[f"{file_path} (Gemini)"] = gemini_design_smells
+            files_refactored[f"{file_path} (Gemini)"] = gemini_refactored_code
         
         # Create a new branch and update the files with the refactored code.
         branch_name = apply_refactorings_to_files(repo, files_refactored)
