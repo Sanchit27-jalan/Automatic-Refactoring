@@ -33,11 +33,15 @@ def call_openai(prompt: str, role: str) -> str:
     print(f"[OpenAI - {role}] Prompt (first 100 chars): {prompt[:100]}...\n")
     
     # Initialize the OpenAI client
-    client = OpenAI(api_key=os.environ["OPENAI_KEY"])
+    #client = OpenAI(api_key=os.environ["OPENAI_KEY"])
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ["OPENAI_KEY"],
+        )
     
     # Create the API request
     response = client.chat.completions.create(
-        model="gpt-4o-mini",  # You can change this to another OpenAI model
+        model="openai/gpt-4o-mini",  # You can change this to another OpenAI model
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": f"{role}: {prompt}"},
