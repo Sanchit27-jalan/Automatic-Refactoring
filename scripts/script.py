@@ -37,7 +37,7 @@ def call_openai(prompt: str, role: str) -> str:
     
     # Create the API request
     response = client.chat.completions.create(
-        model="gpt-4",  # You can change this to another OpenAI model
+        model="gpt-4o-mini",  # You can change this to another OpenAI model
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": f"{role}: {prompt}"},
